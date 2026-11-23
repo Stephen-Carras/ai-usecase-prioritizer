@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Use-Case Prioritizer</title>
+<meta name="description" content="Score AI and automation ideas, see what to fund first, and define how each one fails and when to kill it. Runs entirely in your browser.">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#14171c; --muted:#5b6472; --line:#e1e5ea;
+  --accent:#4f46e5; --accent-soft:#eceafd; --warn:#92400e; --warn-soft:#fef3c7;
+  --ok:#047857; --radius:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1115; --card:#171a21; --text:#e8eaee; --muted:#9aa3b2; --line:#2a2f39;
+    --accent:#8b86ff; --accent-soft:#25234a; --warn:#fbbf24; --warn-soft:#3a2f10; --ok:#34d399;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{padding:28px 20px 8px;max-width:1100px;margin:0 auto}
+header h1{margin:0 0 4px;font-size:1.7rem;letter-spacing:-.01em}
+header p{margin:0;color:var(--muted);max-width:70ch}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+main{max-width:1100px;margin:0 auto;padding:8px 20px 40px}
+section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-top:16px}
+section > h2{margin:0 0 2px;font-size:1.15rem}
+.sub{margin:0 0 14px;color:var(--muted);font-size:.92rem}
+button,.btn{font:inherit;font-size:.9rem;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger.armed{border-color:#dc2626;color:#dc2626}
+input[type=text],textarea,select{font:inherit;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+textarea{resize:vertical;min-height:64px}
+label{font-size:.85rem;font-weight:600}
+.weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.slider{display:flex;flex-direction:column;gap:2px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}
+.slider output{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700}
+.slider small{color:var(--muted);font-size:.78rem;min-height:1.2em}
+.slider label{white-space:nowrap}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.cards{display:grid;gap:14px}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:var(--bg)}
+.card.flash{box-shadow:0 0 0 3px var(--accent)}
+.card-head{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.card-head input{font-weight:600}
+.badge{white-space:nowrap;background:var(--accent-soft);color:var(--accent);font-weight:700;padding:4px 10px;border-radius:999px;font-size:.85rem;font-variant-numeric:tabular-nums}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px}
+.texts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.flag{background:var(--warn-soft);color:var(--warn);font-size:.78rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.add-row{margin-top:14px}
+.results{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.results{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{height:6px;border-radius:99px;background:var(--line);margin-top:4px;min-width:60px}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.matrix{width:100%;height:auto;display:block}
+.matrix .grid{stroke:var(--line);stroke-width:1}
+.matrix .mid{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
+.matrix .quad{fill:var(--accent-soft);opacity:.55}
+.matrix text{fill:var(--muted);font-size:12px}
+.matrix .qlabel{font-size:12px;font-weight:700;opacity:.9}
+.matrix .dot circle{fill:var(--accent);stroke:var(--card);stroke-width:2}
+.matrix .dot text{fill:#fff;font-weight:700;font-size:12px;pointer-events:none}
+.matrix .dot.click{cursor:pointer}
+.matrix .dot.click:hover circle{stroke:var(--text)}
+.empty{color:var(--muted);padding:12px 0}
+.op-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.op-controls select{width:auto}
+.onepager{border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:var(--bg)}
+.onepager h3{margin:0 0 2px;font-size:1.3rem}
+.onepager .meta{color:var(--muted);font-size:.85rem;margin-bottom:14px}
+.op-item{padding:12px 0;border-top:1px solid var(--line)}
+.op-item h4{margin:0 0 2px;font-size:1.05rem}
+.op-item p{margin:6px 0 0}
+.op-item .lbl{font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.op-item .scores{color:var(--muted);font-size:.88rem}
+.op-item .missing{color:var(--warn);font-weight:600}
+.op-also{margin-top:10px;font-size:.88rem;color:var(--muted)}
+.op-matrix{max-width:480px;margin:14px 0}
+footer{max-width:1100px;margin:0 auto;padding:0 20px 40px;color:var(--muted);font-size:.85rem}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:.9rem;display:none;max-width:90vw;z-index:10;gap:12px;align-items:center}
+#toast.show{display:flex}
+#toast button{background:transparent;color:inherit;border-color:currentColor;padding:3px 8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media print{
+  :root{--bg:#fff;--card:#fff;--text:#000;--muted:#444;--line:#ccc;--accent:#3730a3;--accent-soft:#e0e7ff;--warn:#7c2d12;--warn-soft:#ffedd5}
+  body{background:#fff;font-size:12pt}
+  .noprint{display:none!important}
+  main{padding:0;max-width:none}
+  section{border:0;padding:0;margin:0}
+  .onepager{border:0;padding:0}
+  .op-item{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="noprint">
+  <h1>AI Use-Case Prioritizer</h1>
+  <p>Decide which AI and automation ideas to fund first, and define how each one fails and when you will kill it, before anyone writes a line of code. Everything runs in your browser. Nothing is uploaded.</p>
+  <div class="toolbar">
+    <button id="btn-example">Load example</button>
+    <button id="btn-clear" class="danger">Clear all</button>
+    <button id="btn-import">Import JSON</button>
+    <button id="btn-export">Export JSON</button>
+    <button id="btn-share" class="primary">Copy share link</button>
+    <input id="file-import" type="file" accept="application/json,.json" class="sr" tabindex="-1" aria-label="Import JSON file">
+  </div>
+</header>
+
+<main>
+  <section id="sec-weights" class="noprint">
+    <h2>1. What matters to your team?</h2>
+    <p class="sub">Set how much each factor counts (0 to 10). The ranking updates live. Effort and risk count in your favor when they are low.</p>
+    <div id="weights" class="weights"></div>
+  </section>
+
+  <section id="sec-ideas" class="noprint">
+    <h2>2. Your ideas</h2>
+    <p class="sub">Score each idea from 1 to 5, then answer the two questions most scorecards skip: how could this fail, and what result would make you stop?</p>
+    <div id="cards" class="cards"></div>
+    <div class="add-row"><button id="btn-add">+ Add idea</button></div>
+  </section>
+
+  <section id="sec-results" class="noprint">
+    <h2>3. Results</h2>
+    <p class="sub">Ranked by weighted score (0 to 100). Click a dot on the matrix to jump to that idea.</p>
+    <div class="results">
+      <div id="ranking"></div>
+      <div id="matrix"></div>
+    </div>
+  </section>
+
+  <section id="sec-onepager">
+    <div class="noprint">
+      <h2>4. One-pager</h2>
+      <p class="sub">A summary you can send to a sponsor. Print it to PDF or copy it as Markdown.</p>
+      <div class="op-controls">
+        <label for="topn">Show top</label>
+        <select id="topn" aria-label="Number of top ideas to feature"></select>
+        <button id="btn-print" class="primary">Print / Save as PDF</button>
+        <button id="btn-md-copy">Copy Markdown</button>
+        <button id="btn-md-dl">Download .md</button>
+      </div>
+    </div>
+    <div id="onepager" class="onepager"></div>
+  </section>
+</main>
+
+<footer class="noprint">
+  Runs entirely in your browser. Your ideas are saved on this device only (and in a share link if you create one). MIT licensed.
+</footer>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Config ---------- */
+const CRITERIA = [
+  { key:'impact', label:'Impact',         good:'high', hint:['Minimal','Small','Meaningful','Large','Transformative'] },
+  { key:'effort', label:'Effort',         good:'low',  hint:['Trivial','Light','Moderate','Heavy','Massive'] },
+  { key:'risk',   label:'Risk',           good:'low',  hint:['Very low','Low','Moderate','High','Severe'] },
+  { key:'data',   label:'Data readiness', good:'high', hint:['None','Poor','Partial','Good','Clean and accessible'] },
+  { key:'fit',    label:'Strategic fit',  good:'high', hint:['Tangential','Weak','Relevant','Strong','Core priority'] }
+];
+const DEFAULT_WEIGHTS = { impact:5, effort:4, risk:3, data:3, fit:3 };
+const STORE_KEY = 'ai-usecase-prioritizer.v1';
+const MAX_IDEAS = 40;
+
+const EXAMPLE = {
+  version: 1,
+  weights: { ...DEFAULT_WEIGHTS },
+  ideas: [
+    { name:'Invoice triage assistant', impact:4, effort:2, risk:2, data:4, fit:4,
+      failure:'Misroutes invoices from new vendors, so AP loses trust and re-checks everything by hand.',
+      kill:'Stop if routing accuracy stays below 90% after 6 weeks, or manual re-checks exceed 20% of volume.' },
+    { name:'Predictive maintenance alerts', impact:5, effort:5, risk:3, data:2, fit:4,
+      failure:'Sensor data is sparse, the model flags noise, and technicians start ignoring alerts.',
+      kill:'' },
+    { name:'Shift handoff report drafts', impact:3, effort:2, risk:1, data:4, fit:3,
+      failure:'Reports become long and generic, so supervisors rewrite them anyway.',
+      kill:'Stop if supervisors still rewrite more than half of each report after 4 weeks.' },
+    { name:'Demand forecasting copilot', impact:4, effort:4, risk:3, data:3, fit:5,
+      failure:'Planners override the forecast, so the model never learns what actually happened.',
+      kill:'' },
+    { name:'Meeting notes summarizer', impact:2, effort:1, risk:2, data:5, fit:2,
+      failure:'Summaries miss decisions and owners, so people stop reading them.',
+      kill:'Drop it if fewer than half of attendees open the summary after a month.' },
+    { name:'Autonomous vendor negotiation agent', impact:3, effort:5, risk:5, data:2, fit:2,
+      failure:'The agent commits to terms nobody approved.',
+      kill:'Do not start without legal sign-off on the limits of its autonomy.' }
+  ]
+};
+
+/* ---------- State ---------- */
+let uid = 0;
+const state = { weights:{ ...DEFAULT_WEIGHTS }, ideas:[], topN:3 };
+
+/* ---------- DOM helpers (no innerHTML with user text) ---------- */
+function h(tag, props = {}, ...kids){
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)){
+    if (v === false || v == null) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()){
+    if (kid == null || kid === false) continue;
+    el.append(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function s(tag, attrs = {}, ...kids){
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  for (const kid of kids.flat()){
+    if (kid == null) continue;
+    el.append(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const $ = id => document.getElementById(id);
+
+/* ---------- Data handling ---------- */
+function clampInt(v, lo, hi, d){
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
+}
+function str(v, max){ return typeof v === 'string' ? v.slice(0, max) : ''; }
+
+function sanitize(data){
+  if (!data || typeof data !== 'object') throw new Error('That does not look like a valid file.');
+  const w = data.weights && typeof data.weights === 'object' ? data.weights : {};
+  const weights = {};
+  CRITERIA.forEach(c => { weights[c.key] = clampInt(w[c.key], 0, 10, DEFAULT_WEIGHTS[c.key]); });
+  const src = Array.isArray(data.ideas) ? data.ideas.slice(0, MAX_IDEAS) : [];
+  const ideas = src.filter(x => x && typeof x === 'object').map(x => ({
+    id: ++uid,
+    name: str(x.name, 120),
+    impact: clampInt(x.impact, 1, 5, 3),
+    effort: clampInt(x.effort, 1, 5, 3),
+    risk:   clampInt(x.risk,   1, 5, 3),
+    data:   clampInt(x.data,   1, 5, 3),
+    fit:    clampInt(x.fit,    1, 5, 3),
+    failure: str(x.failure, 600),
+    kill: str(x.kill, 600)
+  }));
+  return { weights, ideas };
+}
+function serialize(){
+  return {
+    version: 1,
+    weights: { ...state.weights },
+    ideas: state.ideas.map(i => ({
+      name:i.name, impact:i.impact, effort:i.effort, risk:i.risk, data:i.data, fit:i.fit,
+      failure:i.failure, kill:i.kill
+    }))
+  };
+}
+function applyData(data){
+  const clean = sanitize(data);
+  state.weights = clean.weights;
+  state.ideas = clean.ideas;
+}
+function toB64(text){
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function fromB64(b64){
+  let t = b64.replace(/-/g, '+').replace(/_/g, '/');
+  while (t.length % 4) t += '=';
+  const bin = atob(t);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+function save(){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (e) { /* storage unavailable: ignore */ }
+}
+
+/* ---------- Scoring ---------- */
+function norm(c, v){ return c.good === 'high' ? (v - 1) / 4 : (5 - v) / 4; }
+function score(idea){
+  let total = 0, sum = 0;
+  CRITERIA.forEach(c => {
+    const w = state.weights[c.key];
+    total += w;
+    sum += w * norm(c, idea[c.key]);
+  });
+  return total === 0 ? 0 : Math.round(100 * sum / total);
+}
+function displayName(idea){ return idea.name.trim() || 'Untitled idea'; }
+function ranked(){
+  return state.ideas
+    .map(idea => ({ idea, score: score(idea) }))
+    .sort((a, b) => b.score - a.score || b.idea.impact - a.idea.impact || a.idea.effort - b.idea.effort || displayName(a.idea).localeCompare(displayName(b.idea)))
+    .map((r, k) => ({ ...r, rank: k + 1 }));
+}
+function flagsFor(i){
+  const f = [];
+  if (!i.kill.trim()) f.push('No kill criteria');
+  if (!i.failure.trim()) f.push('No failure mode');
+  if (i.impact >= 4 && i.data <= 2) f.push('High impact rides on weak data');
+  if (i.effort >= 4 && i.impact <= 3) f.push('Heavy effort for modest impact');
+  if (i.risk >= 4) f.push('High risk');
+  return f;
+}
+function localDate(){
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function weightsSummary(){
+  return CRITERIA.map(c => `${c.label} ${state.weights[c.key]}`).join(' · ');
+}
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(msg, actionLabel, action){
+  const el = $('toast');
+  el.textContent = '';
+  el.append(h('span', { text: msg }));
+  if (actionLabel) el.append(h('button', { text: actionLabel, onclick: () => { action(); el.classList.remove('show'); } }));
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 6000);
+}
+
+/* ---------- Rendering: weights ---------- */
+function renderWeights(){
+  const box = $('weights');
+  box.textContent = '';
+  CRITERIA.forEach(c => {
+    const out = h('output', { for:`w-${c.key}`, text:String(state.weights[c.key]) });
+    const input = h('input', { type:'range', id:`w-${c.key}`, min:'0', max:'10', step:'1', value:String(state.weights[c.key]),
+      oninput: e => { state.weights[c.key] = Number(e.target.value); out.textContent = e.target.value; refresh(); } });
+    box.append(h('div', { class:'slider' },
+      h('div', { class:'row' }, h('label', { for:`w-${c.key}`, text:c.label }), out),
+      input,
+      h('small', { text: c.good === 'high' ? 'Higher is better' : 'Lower is better' })
+    ));
+  });
+}
+
+/* ---------- Rendering: idea cards ---------- */
+function buildCard(idea){
+  const badge = h('span', { class:'badge', 'data-score':idea.id, text:'0' });
+  const nameInput = h('input', { type:'text', value:idea.name, placeholder:'Name this idea', maxlength:'120', 'aria-label':'Idea name',
+    oninput: e => { idea.name = e.target.value; refresh(); } });
+  const del = h('button', { text:'Delete', 'aria-label':'Delete this idea', onclick: () => removeIdea(idea.id) });
+  const sliders = CRITERIA.map(c => {
+    const out = h('output', { text:String(idea[c.key]) });
+    const id = `i${idea.id}-${c.key}`;
+    const caption = () => `${c.hint[idea[c.key] - 1]} (${c.good === 'high' ? '5 is best' : '1 is best'})`;
+    const note = h('small', { text:caption() });
+    return h('div', { class:'slider' },
+      h('div', { class:'row' }, h('label', { for:id, text:c.label }), out),
+      h('input', { type:'range', id, min:'1', max:'5', step:'1', value:String(idea[c.key]),
+        oninput: e => { idea[c.key] = Number(e.target.value); out.textContent = String(idea[c.key]); note.textContent = caption(); refresh(); } }),
+      note
+    );
+  });
+  const fail = h('div', {},
+    h('label', { for:`f${idea.id}`, text:'How could this fail?' }),
+    h('textarea', { id:`f${idea.id}`, maxlength:'600', placeholder:'The most likely way this goes wrong in practice',
+      oninput: e => { idea.failure = e.target.value; refresh(); } }));
+  fail.querySelector('textarea').value = idea.failure;
+  const kill = h('div', {},
+    h('label', { for:`k${idea.id}`, text:'Kill criteria' }),
+    h('textarea', { id:`k${idea.id}`, maxlength:'600', placeholder:'The result that makes you stop (a number and a date work best)',
+      oninput: e => { idea.kill = e.target.value; refresh(); } }));
+  kill.querySelector('textarea').value = idea.kill;
+  return h('article', { class:'card', 'data-card':idea.id },
+    h('div', { class:'card-head' }, nameInput, badge, del),
+    h('div', { class:'sliders' }, sliders),
+    h('div', { class:'texts' }, fail, kill),
+    h('div', { class:'flags', 'data-flags':idea.id })
+  );
+}
+function renderCards(){
+  const box = $('cards');
+  box.textContent = '';
+  if (!state.ideas.length) box.append(h('div', { class:'empty', text:'No ideas yet. Add one, or load the example.' }));
+  state.ideas.forEach(i => box.append(buildCard(i)));
+}
+function addIdea(){
+  if (state.ideas.length >= MAX_IDEAS){ toast(`Limit of ${MAX_IDEAS} ideas reached.`); return; }
+  state.ideas.push({ id:++uid, name:'', impact:3, effort:3, risk:3, data:3, fit:3, failure:'', kill:'' });
+  renderCards();
+  refresh();
+  const last = $('cards').lastElementChild;
+  const input = last && last.querySelector('input[type=text]');
+  if (input) input.focus();
+}
+function removeIdea(id){
+  const idx = state.ideas.findIndex(i => i.id === id);
+  if (idx < 0) return;
+  const [removed] = state.ideas.splice(idx, 1);
+  renderCards();
+  refresh();
+  toast('Idea deleted.', 'Undo', () => {
+    state.ideas.splice(Math.min(idx, state.ideas.length), 0, removed);
+    renderCards();
+    refresh();
+  });
+}
+function flagChips(list){ return list.map(t => h('span', { class:'flag', text:t })); }
+
+/* ---------- Rendering: results ---------- */
+function renderRanking(rows){
+  const box = $('ranking');
+  box.textContent = '';
+  if (!rows.length){ box.append(h('div', { class:'empty', text:'Add an idea to see the ranking.' })); return; }
+  const table = h('table', {},
+    h('thead', {}, h('tr', {}, ['#','Idea','Score','I','E','R','D','F'].map(t => h('th', { text:t, scope:'col' })))),
+    h('tbody', {}, rows.map(r => {
+      const i = r.idea;
+      return h('tr', {},
+        h('td', { class:'num', text:String(r.rank) }),
+        h('td', {}, h('div', { text:displayName(i) }), h('div', { class:'flags' }, flagChips(flagsFor(i)))),
+        h('td', { class:'num' }, h('div', { text:String(r.score) }), h('div', { class:'bar' }, h('i', { style:`width:${r.score}%` }))),
+        ['impact','effort','risk','data','fit'].map(k => h('td', { class:'num', text:String(i[k]) }))
+      );
+    }))
+  );
+  box.append(table, h('p', { class:'sub', style:'margin-top:8px', text:'I = impact, E = effort, R = risk, D = data readiness, F = strategic fit.' }));
+}
+function buildMatrix(rows, interactive){
+  const W = 560, H = 420, pl = 58, pr = 16, pt = 16, pb = 56;
+  const pw = W - pl - pr, ph = H - pt - pb;
+  const X = e => pl + (e - 0.5) / 5 * pw;
+  const Y = i => pt + (5.5 - i) / 5 * ph;
+  const svg = s('svg', { viewBox:`0 0 ${W} ${H}`, class:'matrix', role:'img', 'aria-label':'Impact versus effort matrix' });
+  svg.append(s('rect', { class:'quad', x:pl, y:pt, width:pw / 2, height:ph / 2 }));
+  for (let v = 1; v <= 5; v++){
+    svg.append(s('line', { class:'grid', x1:X(v), y1:pt, x2:X(v), y2:pt + ph }));
+    svg.append(s('line', { class:'grid', x1:pl, y1:Y(v), x2:pl + pw, y2:Y(v) }));
+    svg.append(s('text', { x:X(v), y:pt + ph + 18, 'text-anchor':'middle' }, String(v)));
+    svg.append(s('text', { x:pl - 10, y:Y(v) + 4, 'text-anchor':'end' }, String(v)));
+  }
+  svg.append(s('line', { class:'mid', x1:pl + pw / 2, y1:pt, x2:pl + pw / 2, y2:pt + ph }));
+  svg.append(s('line', { class:'mid', x1:pl, y1:pt + ph / 2, x2:pl + pw, y2:pt + ph / 2 }));
+  svg.append(s('text', { class:'qlabel', x:pl + 8, y:pt + 18 }, 'Quick wins'));
+  svg.append(s('text', { class:'qlabel', x:pl + pw - 8, y:pt + 18, 'text-anchor':'end' }, 'Big bets'));
+  svg.append(s('text', { class:'qlabel', x:pl + 8, y:pt + ph - 8 }, 'Fill-ins'));
+  svg.append(s('text', { class:'qlabel', x:pl + pw - 8, y:pt + ph - 8, 'text-anchor':'end' }, 'Money pits'));
+  svg.append(s('text', { x:pl + pw / 2, y:H - 10, 'text-anchor':'middle' }, 'Effort (1 = trivial, 5 = massive)'));
+  svg.append(s('text', { x:14, y:pt + ph / 2, 'text-anchor':'middle', transform:`rotate(-90 14 ${pt + ph / 2})` }, 'Impact (1 = minimal, 5 = transformative)'));
+
+  const groups = new Map();
+  rows.forEach(r => {
+    const key = `${r.idea.effort},${r.idea.impact}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  groups.forEach(list => {
+    list.forEach((r, k) => {
+      const n = list.length;
+      const ang = (2 * Math.PI * k) / n - Math.PI / 2;
+      const off = n > 1 ? 14 : 0;
+      const cx = X(r.idea.effort) + off * Math.cos(ang);
+      const cy = Y(r.idea.impact) + off * Math.sin(ang);
+      const g = s('g', { class:'dot' + (interactive ? ' click' : ''), transform:`translate(${cx.toFixed(1)} ${cy.toFixed(1)})` },
+        s('circle', { r: n > 1 ? 12 : 14 }),
+        s('text', { 'text-anchor':'middle', y:4 }, String(r.rank)),
+        s('title', {}, `#${r.rank} ${displayName(r.idea)} (score ${r.score})`));
+      if (interactive){
+        g.setAttribute('tabindex', '0');
+        g.setAttribute('role', 'button');
+        g.setAttribute('aria-label', `Go to idea ${r.rank}: ${displayName(r.idea)}`);
+        const go = () => focusCard(r.idea.id);
+        g.addEventListener('click', go);
+        g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+      }
+      svg.append(g);
+    });
+  });
+  return svg;
+}
+function focusCard(id){
+  const card = document.querySelector(`[data-card="${id}"]`);
+  if (!card) return;
+  card.scrollIntoView({ behavior:'smooth', block:'center' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1500);
+}
+
+/* ---------- Rendering: one-pager ---------- */
+function topCount(rows){ return Math.max(1, Math.min(state.topN, rows.length)); }
+function renderTopN(rows){
+  const sel = $('topn');
+  sel.textContent = '';
+  const max = Math.max(1, Math.min(5, rows.length));
+  for (let n = 1; n <= max; n++) sel.append(h('option', { value:String(n), text:String(n) }));
+  sel.value = String(topCount(rows));
+}
+function renderOnePager(rows){
+  const box = $('onepager');
+  box.textContent = '';
+  if (!rows.length){ box.append(h('div', { class:'empty', text:'Add and score some ideas to generate a one-pager.' })); return; }
+  const n = topCount(rows);
+  const today = localDate();
+  box.append(h('h3', { text:`AI use-case prioritization: top ${n}` }));
+  box.append(h('div', { class:'meta', text:`${today} · ${rows.length} ideas scored · Weights: ${weightsSummary()}` }));
+  box.append(h('div', { class:'op-matrix' }, buildMatrix(rows, false)));
+  rows.slice(0, n).forEach(r => {
+    const i = r.idea;
+    box.append(h('div', { class:'op-item' },
+      h('h4', { text:`#${r.rank} ${displayName(i)} (${r.score}/100)` }),
+      h('div', { class:'scores', text: CRITERIA.map(c => `${c.label} ${i[c.key]}/5`).join(' · ') }),
+      h('div', { class:'flags' }, flagChips(flagsFor(i))),
+      h('p', {}, h('span', { class:'lbl', text:'How it could fail: ' }),
+        i.failure.trim() ? i.failure : h('span', { class:'missing', text:'Not defined. Define this before starting.' })),
+      h('p', {}, h('span', { class:'lbl', text:'Kill criteria: ' }),
+        i.kill.trim() ? i.kill : h('span', { class:'missing', text:'Not defined. Define this before starting.' }))
+    ));
+  });
+  if (rows.length > n){
+    box.append(h('div', { class:'op-also', text:'Also considered: ' + rows.slice(n).map(r => `#${r.rank} ${displayName(r.idea)} (${r.score})`).join(', ') }));
+  }
+}
+function buildMarkdown(rows){
+  if (!rows.length) return '';
+  const n = topCount(rows);
+  const today = localDate();
+  const lines = [];
+  lines.push(`# AI use-case prioritization: top ${n}`, '');
+  lines.push(`${today} · ${rows.length} ideas scored`, '', `Weights: ${weightsSummary()}`, '');
+  rows.slice(0, n).forEach(r => {
+    const i = r.idea;
+    lines.push(`## #${r.rank} ${displayName(i)} (${r.score}/100)`, '');
+    lines.push(CRITERIA.map(c => `${c.label} ${i[c.key]}/5`).join(' · '), '');
+    const fl = flagsFor(i);
+    if (fl.length) lines.push(`Flags: ${fl.join('; ')}`, '');
+    lines.push(`**How it could fail:** ${i.failure.trim() || 'Not defined. Define this before starting.'}`, '');
+    lines.push(`**Kill criteria:** ${i.kill.trim() || 'Not defined. Define this before starting.'}`, '');
+  });
+  if (rows.length > n){
+    lines.push('## Also considered', '');
+    rows.slice(n).forEach(r => lines.push(`- #${r.rank} ${displayName(r.idea)} (${r.score}/100)`));
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+/* ---------- Refresh ---------- */
+function refresh(){
+  const rows = ranked();
+  rows.forEach(r => {
+    const badge = document.querySelector(`[data-score="${r.idea.id}"]`);
+    if (badge) badge.textContent = `${r.score}/100 · #${r.rank}`;
+    const fl = document.querySelector(`[data-flags="${r.idea.id}"]`);
+    if (fl){ fl.textContent = ''; fl.append(...flagChips(flagsFor(r.idea))); }
+  });
+  renderRanking(rows);
+  const m = $('matrix');
+  m.textContent = '';
+  if (rows.length) m.append(buildMatrix(rows, true));
+  renderTopN(rows);
+  renderOnePager(rows);
+  save();
+}
+function renderAll(){
+  renderWeights();
+  renderCards();
+  refresh();
+}
+
+/* ---------- Actions ---------- */
+function download(name, text, type){
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href:url, download:name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    try {
+      const ta = h('textarea', { style:'position:fixed;opacity:0' });
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (e2) { return false; }
+  }
+}
+function shareUrl(){
+  return location.href.split('#')[0] + '#d=' + toB64(JSON.stringify(serialize()));
+}
+let clearArmed = false, clearTimer;
+function wire(){
+  $('btn-add').addEventListener('click', addIdea);
+  $('btn-example').addEventListener('click', () => { applyData(EXAMPLE); renderAll(); toast('Loaded the example. All data is invented.'); });
+  $('btn-clear').addEventListener('click', e => {
+    const btn = e.currentTarget;
+    if (!clearArmed){
+      clearArmed = true;
+      btn.textContent = 'Click again to confirm';
+      btn.classList.add('armed');
+      clearTimer = setTimeout(() => { clearArmed = false; btn.textContent = 'Clear all'; btn.classList.remove('armed'); }, 3000);
+      return;
+    }
+    clearTimeout(clearTimer);
+    clearArmed = false;
+    btn.textContent = 'Clear all';
+    btn.classList.remove('armed');
+    const backup = serialize();
+    state.ideas = [];
+    renderCards();
+    refresh();
+    toast('All ideas cleared.', 'Undo', () => { applyData(backup); renderAll(); });
+  });
+  $('btn-export').addEventListener('click', () => {
+    download('ai-use-cases.json', JSON.stringify(serialize(), null, 2), 'application/json');
+  });
+  $('btn-import').addEventListener('click', () => $('file-import').click());
+  $('file-import').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { applyData(JSON.parse(String(reader.result))); renderAll(); toast('Imported.'); }
+      catch (err) { toast('Could not import that file: ' + err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+  $('btn-share').addEventListener('click', async () => {
+    const url = shareUrl();
+    const ok = await copyText(url);
+    const big = url.length > 8000 ? ' It is long, so some apps may truncate it. Use Export JSON for big lists.' : '';
+    toast((ok ? 'Share link copied.' : 'Could not copy automatically.') + big);
+    if (!ok) try { history.replaceState(null, '', url.slice(url.indexOf('#'))); } catch (e) { /* ignore */ }
+  });
+  $('topn').addEventListener('change', e => { state.topN = Number(e.target.value); renderOnePager(ranked()); });
+  $('btn-print').addEventListener('click', () => window.print());
+  $('btn-md-copy').addEventListener('click', async () => {
+    const md = buildMarkdown(ranked());
+    toast(md ? ((await copyText(md)) ? 'Markdown copied.' : 'Could not copy. Use Download .md instead.') : 'Nothing to copy yet.');
+  });
+  $('btn-md-dl').addEventListener('click', () => {
+    const md = buildMarkdown(ranked());
+    if (md) download('ai-use-case-prioritization.md', md, 'text/markdown'); else toast('Nothing to download yet.');
+  });
+}
+
+/* ---------- Init ---------- */
+function init(){
+  let loadedFromLink = false, loaded = false;
+  const m = location.hash.match(/^#d=([A-Za-z0-9_-]+)$/);
+  if (m){
+    try { applyData(JSON.parse(fromB64(m[1]))); loaded = true; loadedFromLink = true; }
+    catch (e) { /* fall through to stored data */ }
+  }
+  if (!loaded){
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw){ applyData(JSON.parse(raw)); loaded = true; }
+    } catch (e) { /* ignore */ }
+  }
+  if (!loaded) applyData(EXAMPLE);
+  wire();
+  renderAll();
+  if (loadedFromLink) toast('Loaded from a shared link. Your edits stay on this device.');
+}
+init();
+})();
+</script>
+</body>
+</html>
